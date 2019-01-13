@@ -80,6 +80,10 @@ int main(int argc, char* argv[]) {
         "--flatten-embree/--no-flatten-embree", true, "Flatten embree scene");
     auto add_skyenv = parse_argument(parser,
         "--add-skyenv/--no-add-skyenv", false, "Add sky envmap");
+    auto add_skysun = parse_argument(parser,
+        "--add-skysun/--no-add-skysun", false, "Add sun to envmap");
+    auto add_skyzup = parse_argument(parser,
+        "--add-skyzup/--no-add-skyzup", false, "Add sky with zup envmap");
     auto imfilename            = parse_argument(
         parser, "--output-image,-o", "out.hdr"s, "Image filename");
     auto filename = parse_argument(
@@ -105,7 +109,14 @@ int main(int argc, char* argv[]) {
     log_validation_errors(scene);
 
     // add sky
-    if(add_skyenv) add_sky_environment(scene);
+    if(add_skyenv) {
+        add_sky_environment(scene, add_skysun);
+        if(app.add_skyzup) {
+            auto& environment = app.scene.environments.front();
+            environment.frame.y = {0,0,1};
+            environment.frame.z = {0,-1,0};
+        }
+    }
 
     // build bvh
     log_info("building bvh");

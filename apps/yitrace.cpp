@@ -54,7 +54,11 @@ struct app_state {
     // scene
     yocto_scene scene = {};
     bvh_scene   bvh   = {};
+
+    // envmap
     bool add_skyenv = false;
+    bool add_skysun = false;
+    bool add_skyzup = false;
 
     // rendering state
     trace_lights                   lights  = {};
@@ -143,7 +147,14 @@ bool load_scene_sync(app_state& app) {
     tesselate_shapes_and_surfaces(app.scene);
 
     // add sky
-    if(app.add_skyenv) add_sky_environment(app.scene);
+    if(app.add_skyenv) {
+        add_sky_environment(app.scene, app.add_skysun);
+        if(app.add_skyzup) {
+            auto& environment = app.scene.environments.front();
+            environment.frame.y = {0,0,1};
+            environment.frame.z = {0,-1,0};
+        }
+    }
 
     // add components
     add_missing_cameras(app.scene);
@@ -471,6 +482,10 @@ int main(int argc, char* argv[]) {
         "--double-sided/--no-double-sided", false, "Double-sided rendering.");
     app.add_skyenv = parse_argument(parser,
         "--add-skyenv/--no-add-skyenv", false, "Add sky envmap");
+    app.add_skysun = parse_argument(parser,
+        "--add-skysun/--no-add-skysun", false, "Add sun to envmap");
+    app.add_skyzup = parse_argument(parser,
+        "--add-skyzup/--no-add-skyzup", false, "Add sky with zup envmap");
     app.imfilename                 = parse_argument(
         parser, "--output-image,-o", "out.hdr"s, "Image filename");
     app.filename = parse_argument(
