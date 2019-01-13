@@ -59,6 +59,7 @@ struct app_state {
     bool add_skyenv = false;
     bool add_skysun = false;
     bool add_skyzup = false;
+    float add_skyint = 1.0f;
 
     // rendering state
     trace_lights                   lights  = {};
@@ -149,10 +150,10 @@ bool load_scene_sync(app_state& app) {
     // add sky
     if(app.add_skyenv) {
         add_sky_environment(app.scene, app.add_skysun);
+        app.scene.environments.front().emission *= app.add_skyint;
         if(app.add_skyzup) {
-            auto& environment = app.scene.environments.front();
-            environment.frame.y = {0,0,1};
-            environment.frame.z = {0,-1,0};
+            app.scene.environments.front().frame.y = {0,0,1};
+            app.scene.environments.front().frame.z = {0,-1,0};
         }
     }
 
@@ -484,6 +485,8 @@ int main(int argc, char* argv[]) {
         "--add-skyenv/--no-add-skyenv", false, "Add sky envmap");
     app.add_skysun = parse_argument(parser,
         "--add-skysun/--no-add-skysun", false, "Add sun to envmap");
+    app.add_skyint = parse_argument(parser,
+        "--add-skyint", 1.0f, "Add sky intensity to envmap");
     app.add_skyzup = parse_argument(parser,
         "--add-skyzup/--no-add-skyzup", false, "Add sky with zup envmap");
     app.imfilename                 = parse_argument(

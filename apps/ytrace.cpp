@@ -82,6 +82,8 @@ int main(int argc, char* argv[]) {
         "--add-skyenv/--no-add-skyenv", false, "Add sky envmap");
     auto add_skysun = parse_argument(parser,
         "--add-skysun/--no-add-skysun", false, "Add sun to envmap");
+    auto add_skyint = parse_argument(parser,
+        "--add-skyint", 1.0f, "Add sky intensity to envmap");
     auto add_skyzup = parse_argument(parser,
         "--add-skyzup/--no-add-skyzup", false, "Add sky with zup envmap");
     auto imfilename            = parse_argument(
@@ -111,10 +113,10 @@ int main(int argc, char* argv[]) {
     // add sky
     if(add_skyenv) {
         add_sky_environment(scene, add_skysun);
-        if(app.add_skyzup) {
-            auto& environment = app.scene.environments.front();
-            environment.frame.y = {0,0,1};
-            environment.frame.z = {0,-1,0};
+        scene.environments.front().emission *= add_skyint;
+        if(add_skyzup) {
+            scene.environments.front().frame.y = {0,0,1};
+            scene.environments.front().frame.z = {0,-1,0};
         }
     }
 
