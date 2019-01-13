@@ -347,7 +347,7 @@ void add_missing_materials(yocto_scene& scene);
 void add_missing_cameras(yocto_scene& scene);
 
 // Add a sky environment
-void add_sky_environment(yocto_scene& scene, bool add_sun, float sun_angle = pif / 4);
+void add_sky_environment(yocto_scene& scene, bool add_sun, float sun_angle = 60 * pif / 180);
 
 // Checks for validity of the scene.
 void log_validation_errors(
