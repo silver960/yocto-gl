@@ -709,6 +709,16 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
       return material.diffuse * (1 - F) * ndi / pif +
              F * D * G / (4 * ndo * ndi) * ndi;
     } break;
+    case material_point::scattering_type::metal: {
+      auto ndi = dot(normal, incoming), ndo = dot(normal, outgoing);
+      if (ndo < 0 || ndi < 0) return zero3f;
+      auto halfway = normalize(incoming + outgoing);
+      auto F       = fresnel_schlick(material.specular, dot(halfway, outgoing));
+      auto D       = eval_microfacetD(material.roughness, normal, halfway);
+      auto G       = eval_microfacetG(
+          material.roughness, normal, halfway, outgoing, incoming);
+      return F * D * G / (4 * ndo * ndi) * ndi;
+    } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) > 0 ? normal : -normal;
       auto ceta      = reflectivity_to_eta(material.coat);
@@ -788,8 +798,9 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
       }
       return brdfcos;
     } break;
-    default: throw std::runtime_error("unknown scattering type");
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 vec3f eval_delta(const material_point& material, const vec3f& normal,
@@ -801,6 +812,10 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
     } break;
     case material_point::scattering_type::plastic: {
       return zero3f;
+    } break;
+    case material_point::scattering_type::metal: {
+      if (dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return zero3f;
+      return fresnel_schlick(material.specular, dot(normal, outgoing));
     } break;
     case material_point::scattering_type::uber: {
       auto brdfcos = zero3f;
@@ -834,8 +849,9 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
       }
       return brdfcos;
     } break;
-    default: throw std::runtime_error("unknown scattering type");
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 using std::array;
@@ -887,6 +903,11 @@ vec3f sample_brdf(const material_point& material, const vec3f& normal,
         return reflect(outgoing, halfway);
       }
     } break;
+    case material_point::scattering_type::metal: {
+      if (dot(normal, outgoing) < 0) return zero3f;
+      auto halfway = sample_microfacet(material.roughness, normal, rn);
+      return reflect(outgoing, halfway);
+    } break;
     case material_point::scattering_type::uber: {
       auto pdfs      = compute_brdf_pdfs(material, normal, outgoing);
       auto up_normal = dot(normal, outgoing) > 0 ? normal : -normal;
@@ -929,8 +950,9 @@ vec3f sample_brdf(const material_point& material, const vec3f& normal,
       // something went wrong if we got here
       return zero3f;
     } break;
-    default: throw std::runtime_error("unknown scattering type");
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 vec3f sample_delta(const material_point& material, const vec3f& normal,
@@ -943,6 +965,10 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
     } break;
     case material_point::scattering_type::plastic: {
       return zero3f;
+    } break;
+    case material_point::scattering_type::metal: {
+      if(dot(normal, outgoing) < 0) return zero3f;
+      return reflect(outgoing, normal);
     } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) > 0 ? normal : -normal;
@@ -980,6 +1006,8 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
       return zero3f;
     } break;
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 // Compute the weight for sampling the BRDF
@@ -999,6 +1027,13 @@ float sample_brdf_pdf(const material_point& material, const vec3f& normal,
       return (1 - F) * sample_hemisphere_pdf(normal, incoming) +
              F * sample_microfacet_pdf(material.roughness, normal, halfway) /
                  (4 * abs(dot(outgoing, halfway)));
+    } break;
+    case material_point::scattering_type::metal: {
+      if (dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return 0;
+      auto halfway = normalize(incoming + outgoing);
+      if (dot(normal, halfway) < 0) return 0;
+      return sample_microfacet_pdf(material.roughness, normal, halfway) /
+                 (4 * dot(outgoing, halfway));
     } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) >= 0 ? normal : -normal;
@@ -1046,8 +1081,9 @@ float sample_brdf_pdf(const material_point& material, const vec3f& normal,
 
       return pdf;
     } break;
-    default: throw std::runtime_error("unknown scattering type");
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 float sample_delta_pdf(const material_point& material, const vec3f& normal,
@@ -1060,6 +1096,10 @@ float sample_delta_pdf(const material_point& material, const vec3f& normal,
     } break;
     case material_point::scattering_type::plastic: {
       return 0;
+    } break;
+    case material_point::scattering_type::metal: {
+      if(dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return 0;
+      return 1;
     } break;
     case material_point::scattering_type::uber: {
       auto pdfs = compute_brdf_pdfs(material, normal, outgoing);
@@ -1076,8 +1116,9 @@ float sample_delta_pdf(const material_point& material, const vec3f& normal,
 
       return pdf;
     } break;
-    default: throw std::runtime_error("unknown scattering type");
   }
+
+  throw std::runtime_error("unknown scattering");
 }
 
 vec3f eval_volscattering(const material_point& material, const vec3f& outgoing,
