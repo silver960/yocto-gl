@@ -785,6 +785,14 @@ struct load_yaml_scene_cb : yaml_callbacks {
   unordered_map<string, int> mmap = {{"", -1}};
   unordered_map<string, int> smap = {{"", -1}};
 
+  yocto_material::scattering_type get_material_scattering(const string& name) {
+    for (auto idx = 0; idx < material_scattering_names.size(); idx++) {
+      if (material_scattering_names[idx] == name)
+        return (yocto_material::scattering_type)idx;
+    }
+    throw std::runtime_error("unknown scattering type");
+  }
+
   load_yaml_scene_cb(yocto_scene& scene, const load_params& params)
       : scene{scene}, params{params} {
     auto reserve_size = 1024 * 32;
@@ -920,6 +928,10 @@ struct load_yaml_scene_cb : yaml_callbacks {
         if (key == "uri") {
           parse_yaml_value(value, material.uri);
           mmap[material.uri] = (int)scene.materials.size() - 1;
+        } else if (key == "scattering") {
+          auto name = string{};
+          parse_yaml_value(value, name);
+          material.scattering = get_material_scattering(name);
         } else if (key == "emission") {
           parse_yaml_value(value, material.emission);
         } else if (key == "diffuse") {
@@ -1207,6 +1219,9 @@ static void save_yaml(const string& filename, const yocto_scene& scene,
   if (!scene.materials.empty()) write_yaml_text(fs, "\n\nmaterials:\n");
   for (auto& material : scene.materials) {
     write_yaml_line(fs, "  - uri:", material.uri);
+    write_yaml_opt(fs, "scattering",
+        material_scattering_names[(int)material.scattering],
+        material_scattering_names[(int)def_material.scattering]);
     write_yaml_opt(fs, "emission", material.emission, def_material.emission);
     write_yaml_opt(fs, "diffuse", material.diffuse, def_material.diffuse);
     write_yaml_opt(fs, "specular", material.specular, def_material.specular);
@@ -3949,10 +3964,12 @@ static void save_pbrt(const string& filename, const yocto_scene& scene) {
       auto specular = vec3f{1};
       write_pbrt_command(fs, "    ", "rgb Ks", specular);
     }
-    if(material.transmission != zero3f) {
+    if (material.transmission != zero3f) {
       if (material.transmission_tex >= 0) {
         write_pbrt_command(fs, "    ", "texture Kt",
-            fs::path(scene.textures[material.transmission_tex].uri).stem().string());
+            fs::path(scene.textures[material.transmission_tex].uri)
+                .stem()
+                .string());
       } else {
         auto transmission = vec3f{1};
         write_pbrt_command(fs, "    ", "rgb Kt", transmission);
@@ -3969,8 +3986,8 @@ static void save_pbrt(const string& filename, const yocto_scene& scene) {
     write_pbrt_command(fs, "AttributeBegin");
     write_pbrt_command(fs, "  TransformBegin");
     write_pbrt_command(fs, "    Transform", mat4f{instance.frame});
-    write_pbrt_command(
-        fs, "    NamedMaterial", pbrt_noparens{fs::path(material.uri).stem().string()});
+    write_pbrt_command(fs, "    NamedMaterial",
+        pbrt_noparens{fs::path(material.uri).stem().string()});
     if (material.emission != zero3f) {
       write_pbrt_command(
           fs, "    AreaLightSource", "diffuse", "rgb L", material.emission);

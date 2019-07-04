@@ -728,23 +728,26 @@ vec3f eval_normal(const yocto_scene& scene, const yocto_instance& instance,
 vec3f eval_shading_normal(const yocto_scene& scene,
     const yocto_instance& instance, int element, const vec2f& uv,
     const vec3f& direction, bool non_rigid_frame) {
-  auto& shape    = scene.shapes[instance.shape];
-  auto& material = scene.materials[instance.material];
+  auto& shape           = scene.shapes[instance.shape];
+  auto& material        = scene.materials[instance.material];
+  auto  is_double_sided = material.refraction == zero3f;
   if (!shape.points.empty()) {
     return -direction;
   } else if (!shape.lines.empty()) {
     auto normal = eval_normal(scene, instance, element, uv, non_rigid_frame);
     return orthonormalize(-direction, normal);
   } else if (material.normal_tex < 0) {
-    return eval_normal(scene, instance, element, uv, non_rigid_frame);
+    auto normal = eval_normal(scene, instance, element, uv, non_rigid_frame);
+    return (is_double_sided && dot(-direction, normal) < 0) ? -normal : normal;
   } else {
     auto& normal_tex = scene.textures[material.normal_tex];
     auto  normalmap  = -1 + 2 * xyz(eval_texture(normal_tex,
                                   eval_texcoord(shape, element, uv), true));
     auto  basis      = eval_tangent_basis(shape, element, uv);
     normalmap.y *= basis.second ? 1 : -1;  // flip vertical axis
-    auto normal = normalize(basis.first * normalmap);
-    return transform_normal(instance.frame, normal, non_rigid_frame);
+    auto normal = transform_normal(
+        instance.frame, normalize(basis.first * normalmap), non_rigid_frame);
+    return (is_double_sided && dot(-direction, normal) < 0) ? -normal : normal;
   }
 }
 // Instance element values.
@@ -1064,6 +1067,8 @@ material_point eval_material(const yocto_scene& scene,
     const yocto_material& material, const vec2f& texcoord,
     const vec4f& shape_color) {
   auto point = material_point{};
+  // type
+  point.scattering = (material_point::scattering_type)material.scattering;
   // factors
   point.emission       = material.emission * xyz(shape_color);
   point.diffuse        = material.diffuse * xyz(shape_color);

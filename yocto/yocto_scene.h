@@ -118,7 +118,9 @@ struct yocto_voltexture {
 // The model is based on OBJ, but contains glTF compatibility.
 // For the documentation on the values, please see the OBJ format.
 struct yocto_material {
-  string uri = "";
+  enum struct scattering_type { uber, matte, plastic };
+  string          uri        = "";
+  scattering_type scattering = scattering_type::uber;
 
   // lobes
   vec3f emission        = {0, 0, 0};
@@ -154,6 +156,9 @@ struct yocto_material {
   // volume textures
   int voldensity_tex = -1;
 };
+
+// Names for material scattering types
+const auto material_scattering_names = vector<string>{"uber", "matte", "plastic"};
 
 // Shape data represented as an indexed meshes of elements.
 // May contain either points, lines, triangles and quads.
@@ -425,18 +430,20 @@ ray3f eval_camera(const yocto_camera& camera, const vec2i& ij,
 
 // Material values packed into a convenience structure.
 struct material_point {
-  vec3f emission      = {0, 0, 0};
-  vec3f diffuse       = {0, 0, 0};
-  vec3f specular      = {0, 0, 0};
-  vec3f coat          = {0, 0, 0};
-  vec3f transmission  = {0, 0, 0};
-  vec3f refraction    = {0, 0, 0};
-  float roughness     = 0;
-  vec3f voldensity    = {0, 0, 0};
-  vec3f volemission   = {0, 0, 0};
-  vec3f volscatter    = {0, 0, 0};
-  float volanisotropy = 0;
-  float opacity       = 1;
+  enum struct scattering_type { uber, matte, plastic };
+  scattering_type scattering    = scattering_type::uber;
+  vec3f           emission      = {0, 0, 0};
+  vec3f           diffuse       = {0, 0, 0};
+  vec3f           specular      = {0, 0, 0};
+  vec3f           coat          = {0, 0, 0};
+  vec3f           transmission  = {0, 0, 0};
+  vec3f           refraction    = {0, 0, 0};
+  float           roughness     = 0;
+  vec3f           voldensity    = {0, 0, 0};
+  vec3f           volemission   = {0, 0, 0};
+  vec3f           volscatter    = {0, 0, 0};
+  float           volanisotropy = 0;
+  float           opacity       = 1;
 };
 material_point eval_material(const yocto_scene& scene,
     const yocto_material& material, const vec2f& texcoord,
