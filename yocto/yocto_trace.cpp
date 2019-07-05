@@ -719,6 +719,28 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
           material.roughness, normal, halfway, outgoing, incoming);
       return F * D * G / (4 * ndo * ndi) * ndi;
     } break;
+    case material_point::scattering_type::thinglass: {
+      auto ndi = dot(normal, incoming), ndo = dot(normal, outgoing);
+      if (ndo < 0) return zero3f;
+      if (ndi >= 0) {
+        auto halfway = normalize(incoming + outgoing);
+        auto F = fresnel_schlick(material.specular, dot(halfway, outgoing));
+        auto D = eval_microfacetD(material.roughness, normal, halfway);
+        auto G = eval_microfacetG(
+            material.roughness, normal, halfway, outgoing, incoming);
+        return F * D * G / (4 * ndo * ndi) * ndi;
+      } else {
+        auto ir      = reflect(-incoming, normal);
+        auto halfway = normalize(ir + outgoing);
+        auto fresnel = fresnel_schlick(material.specular, dot(halfway, outgoing));
+        auto D       = eval_microfacetD(material.roughness, normal, halfway);
+        auto G       = eval_microfacetG(
+            material.roughness, normal, halfway, outgoing, ir);
+        return material.transmission * (1 - fresnel) * D * G /
+                   abs(4 * dot(normal, outgoing) * dot(normal, incoming)) *
+                   abs(dot(normal, incoming));
+      }
+    } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) > 0 ? normal : -normal;
       auto ceta      = reflectivity_to_eta(material.coat);
@@ -817,6 +839,11 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
       if (dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return zero3f;
       return fresnel_schlick(material.specular, dot(normal, outgoing));
     } break;
+    case material_point::scattering_type::thinglass: {
+      if (dot(normal, outgoing) < 0) return zero3f;
+      auto F = fresnel_schlick(material.specular, dot(normal, outgoing));
+      return (dot(normal, incoming) >= 0) ? F : 1 - F;
+    } break;
     case material_point::scattering_type::uber: {
       auto brdfcos = zero3f;
       auto ceta    = reflectivity_to_eta(material.coat);
@@ -896,17 +923,29 @@ vec3f sample_brdf(const material_point& material, const vec3f& normal,
     case material_point::scattering_type::plastic: {
       if (dot(normal, outgoing) < 0) return zero3f;
       auto F = fresnel_schlick(material.specular, dot(normal, outgoing));
-      if (rnl >= max(F)) {
-        return sample_hemisphere(normal, rn);
-      } else {
+      if (rnl < max(F)) {
         auto halfway = sample_microfacet(material.roughness, normal, rn);
         return reflect(outgoing, halfway);
+      } else {
+        return sample_hemisphere(normal, rn);
       }
     } break;
     case material_point::scattering_type::metal: {
       if (dot(normal, outgoing) < 0) return zero3f;
       auto halfway = sample_microfacet(material.roughness, normal, rn);
       return reflect(outgoing, halfway);
+    } break;
+    case material_point::scattering_type::thinglass: {
+      if (dot(normal, outgoing) < 0) return zero3f;
+      auto F = fresnel_schlick(material.specular, dot(normal, outgoing));
+      if (rnl < max(F)) {
+        auto halfway = sample_microfacet(material.roughness, normal, rn);
+        return reflect(outgoing, halfway);
+      } else {
+        auto halfway = sample_microfacet(material.roughness, normal, rn);
+        auto ir      = reflect(outgoing, halfway);
+        return -reflect(ir, normal);
+      }
     } break;
     case material_point::scattering_type::uber: {
       auto pdfs      = compute_brdf_pdfs(material, normal, outgoing);
@@ -967,8 +1006,17 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
       return zero3f;
     } break;
     case material_point::scattering_type::metal: {
-      if(dot(normal, outgoing) < 0) return zero3f;
+      if (dot(normal, outgoing) < 0) return zero3f;
       return reflect(outgoing, normal);
+    } break;
+    case material_point::scattering_type::thinglass: {
+      if (dot(normal, outgoing) < 0) return zero3f;
+      auto F = fresnel_schlick(material.specular, dot(normal, outgoing));
+      if (rnl < max(F)) {
+        return reflect(outgoing, normal);
+      } else {
+        return -outgoing;
+      }
     } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) > 0 ? normal : -normal;
@@ -1033,7 +1081,21 @@ float sample_brdf_pdf(const material_point& material, const vec3f& normal,
       auto halfway = normalize(incoming + outgoing);
       if (dot(normal, halfway) < 0) return 0;
       return sample_microfacet_pdf(material.roughness, normal, halfway) /
-                 (4 * dot(outgoing, halfway));
+             (4 * dot(outgoing, halfway));
+    } break;
+    case material_point::scattering_type::thinglass: {
+      if (dot(normal, outgoing) < 0) return 0;
+      auto F = max(fresnel_schlick(material.specular, dot(normal, outgoing)));
+      if (dot(normal, incoming) >= 0) {
+        auto halfway = normalize(incoming + outgoing);
+        return F * sample_microfacet_pdf(material.roughness, normal, halfway) /
+              (4 * dot(outgoing, halfway));
+      } else {
+        auto ir        = reflect(-incoming, normal);
+        auto halfway   = normalize(ir + outgoing);
+        auto d = sample_microfacet_pdf(material.roughness, normal, halfway);
+        return (1 - F) * d / (4 * abs(dot(outgoing, halfway)));
+      }
     } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) >= 0 ? normal : -normal;
@@ -1098,8 +1160,13 @@ float sample_delta_pdf(const material_point& material, const vec3f& normal,
       return 0;
     } break;
     case material_point::scattering_type::metal: {
-      if(dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return 0;
+      if (dot(normal, outgoing) < 0 || dot(normal, incoming) < 0) return 0;
       return 1;
+    } break;
+    case material_point::scattering_type::thinglass: {
+      if (dot(normal, outgoing) < 0) return 0;
+      auto F = max(fresnel_schlick(material.specular, dot(normal, outgoing)));
+      return dot(normal, incoming) >= 0 ? F : 1 - F;
     } break;
     case material_point::scattering_type::uber: {
       auto pdfs = compute_brdf_pdfs(material, normal, outgoing);

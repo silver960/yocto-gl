@@ -118,7 +118,7 @@ struct yocto_voltexture {
 // The model is based on OBJ, but contains glTF compatibility.
 // For the documentation on the values, please see the OBJ format.
 struct yocto_material {
-  enum struct scattering_type { uber, matte, plastic, metal };
+  enum struct scattering_type { uber, matte, plastic, metal, thinglass, glass };
   string          uri        = "";
   scattering_type scattering = scattering_type::uber;
 
@@ -158,7 +158,8 @@ struct yocto_material {
 };
 
 // Names for material scattering types
-const auto material_scattering_names = vector<string>{"uber", "matte", "plastic", "metal"};
+const auto material_scattering_names = vector<string>{
+    "uber", "matte", "plastic", "metal", "thinglass", "glass"};
 
 // Shape data represented as an indexed meshes of elements.
 // May contain either points, lines, triangles and quads.
@@ -430,7 +431,7 @@ ray3f eval_camera(const yocto_camera& camera, const vec2i& ij,
 
 // Material values packed into a convenience structure.
 struct material_point {
-  enum struct scattering_type { uber, matte, plastic, metal };
+  enum struct scattering_type { uber, matte, plastic, metal, thinglass, glass };
   scattering_type scattering    = scattering_type::uber;
   vec3f           emission      = {0, 0, 0};
   vec3f           diffuse       = {0, 0, 0};

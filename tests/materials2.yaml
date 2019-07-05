@@ -41,9 +41,11 @@ textures:
   - uri: ::yocto::test-sky::textures/test-sky.hdr
 materials:
   - uri: materials/test-floor.yaml
+    scattering: matte
     diffuse: [0.7, 0.7, 0.7]
     diffuse_tex: textures/test-floor.png
   - uri: materials/test-transparent.yaml
+    scattering: matte
     diffuse: [0.7, 0.5, 0.5]
     roughness: 1
     opacity: 0.2
@@ -56,10 +58,12 @@ materials:
     refraction: [1, 0.7, 0.7]
     roughness: 0.1
   - uri: materials/test-thinglass-sharp.yaml
+    scattering: thinglass
     specular: [0.04, 0.04, 0.04]
     transmission: [1, 1, 1]
     roughness: 0
   - uri: materials/test-thinglass-rough.yaml
+    scattering: thinglass
     specular: [0.04, 0.04, 0.04]
     transmission: [1, 0.7, 0.7]
     roughness: 0.05
