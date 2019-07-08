@@ -1168,30 +1168,29 @@ float sample_brdf_pdf(const material_point& material, const vec3f& normal,
       }
     } break;
     case material_point::scattering_type::glass: {
+      auto eta = reflectivity_to_eta(material.specular);
+      if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
-      auto pdfs = compute_brdf_pdfs(material, normal, outgoing);
-
-      auto pdf = 0.0f;
-      if (pdfs[1] && same_hemisphere(normal, outgoing, incoming)) {
+      auto F = max(fresnel_dielectric(eta, abs(dot(outgoing, normal))));
+      if (F > 0 && same_hemisphere(normal, outgoing, incoming)) {
         auto halfway = normalize(incoming + outgoing);
-        pdf += pdfs[1] *
+        return F *
                sample_microfacet_pdf(material.roughness, up_normal, halfway) /
                (4 * abs(dot(outgoing, halfway)));
       }
-      if (pdfs[3] && other_hemisphere(normal, outgoing, incoming)) {
+      if (1 - F > 0 && other_hemisphere(normal, outgoing, incoming)) {
         auto eta            = mean(reflectivity_to_eta(material.specular));
         auto halfway_vector = dot(outgoing, normal) > 0
                                   ? -(outgoing + eta * incoming)
                                   : (eta * outgoing + incoming);
         auto halfway = normalize(halfway_vector);
         // [Walter 2007] equation 17
-        pdf += pdfs[3] *
+        return (1 - F) *
                sample_microfacet_pdf(material.roughness, up_normal, halfway) *
                abs(dot(halfway, incoming)) /
                dot(halfway_vector, halfway_vector);
       }
-
-      return pdf;
+      return 0;
     } break;
     case material_point::scattering_type::uber: {
       auto up_normal = dot(normal, outgoing) >= 0 ? normal : -normal;
