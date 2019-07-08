@@ -1265,15 +1265,11 @@ float sample_delta_pdf(const material_point& material, const vec3f& normal,
       return dot(normal, incoming) >= 0 ? F : 1 - F;
     } break;
     case material_point::scattering_type::glass: {
-      auto pdfs = compute_brdf_pdfs(material, normal, outgoing);
-
-      auto pdf = 0.0f;
-      if (pdfs[1] && same_hemisphere(normal, outgoing, incoming))
-        pdf += pdfs[1];
-      if (pdfs[3] && other_hemisphere(normal, outgoing, incoming))
-        pdf += pdfs[3];
-
-      return pdf;
+      auto eta = reflectivity_to_eta(material.specular);
+      if (dot(normal, outgoing) < 0) eta = 1 / eta;
+      auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
+      auto F = max(fresnel_dielectric(eta, abs(dot(outgoing, normal))));
+      return (same_hemisphere(normal, outgoing, incoming)) ? F : 1 - F;
     } break;
     case material_point::scattering_type::uber: {
       auto pdfs = compute_brdf_pdfs(material, normal, outgoing);
