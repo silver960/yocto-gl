@@ -885,7 +885,7 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
       auto eta = reflectivity_to_eta(material.specular);
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto F = fresnel_dielectric(eta, abs(dot(normal, outgoing)));
-      return (same_hemisphere(normal, outgoing, incoming))
+      return same_hemisphere(normal, outgoing, incoming)
                  ? F
                  : (1 - F) * material.refraction;
     } break;
@@ -1084,8 +1084,7 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
       if (rnl < max(F)) {
         return reflect(outgoing, up_normal);
       } else {
-        return refract_notir(
-            outgoing, up_normal, mean(1 / eta));
+        return refract(outgoing, up_normal, mean(1 / eta));
       }
     } break;
     case material_point::scattering_type::uber: {
