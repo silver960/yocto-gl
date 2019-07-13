@@ -748,13 +748,13 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       if (same_hemisphere(normal, outgoing, incoming)) {
         auto halfway = normalize(incoming + outgoing);
-        auto F = fresnel_dielectric(eta, abs(dot(halfway, outgoing)));
+        auto F       = fresnel_dielectric(eta, abs(dot(halfway, outgoing)));
         auto D       = eval_microfacetD(material.roughness, up_normal, halfway);
         auto G       = eval_microfacetG(
             material.roughness, up_normal, halfway, outgoing, incoming);
         return F * D * G /
-                   abs(4 * dot(normal, outgoing) * dot(normal, incoming)) *
-                   abs(dot(normal, incoming));
+               abs(4 * dot(normal, outgoing) * dot(normal, incoming)) *
+               abs(dot(normal, incoming));
       }
       if (other_hemisphere(normal, outgoing, incoming)) {
         auto eta            = mean(reflectivity_to_eta(material.specular));
@@ -762,7 +762,7 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
                                   ? -(outgoing + eta * incoming)
                                   : (eta * outgoing + incoming);
         auto halfway = normalize(halfway_vector);
-        auto F = fresnel_dielectric(
+        auto F       = fresnel_dielectric(
             dot(outgoing, normal) > 0 ? vec3f{eta} : vec3f{1 / eta},
             abs(dot(halfway, outgoing)));
         auto D = eval_microfacetD(material.roughness, up_normal, halfway);
@@ -773,9 +773,8 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
                          (dot(outgoing, normal) * dot(incoming, normal));
 
         // [Walter 2007] equation 21
-        return material.refraction * abs(dot_terms) *
-                   (1 - F) * D * G / dot(halfway_vector, halfway_vector) *
-                   abs(dot(normal, incoming));
+        return material.refraction * abs(dot_terms) * (1 - F) * D * G /
+               dot(halfway_vector, halfway_vector) * abs(dot(normal, incoming));
       }
     } break;
     case material_point::scattering_type::uber: {
@@ -882,9 +881,12 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
       return (dot(normal, incoming) >= 0) ? F : material.transmission * (1 - F);
     } break;
     case material_point::scattering_type::glass: {
-      auto eta = reflectivity_to_eta(material.specular);
+      auto eta = mean(reflectivity_to_eta(material.specular));
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
-      auto F = fresnel_dielectric(eta, abs(dot(normal, outgoing)));
+      auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
+      auto refracted = refract_notir(outgoing, up_normal, 1 / eta);
+      auto F         = fresnel_schlick(material.specular,
+          min(abs(dot(normal, outgoing)), abs(dot(normal, refracted))));
       return same_hemisphere(normal, outgoing, incoming)
                  ? F
                  : (1 - F) * material.refraction;
@@ -996,7 +998,7 @@ vec3f sample_brdf(const material_point& material, const vec3f& normal,
       auto eta = reflectivity_to_eta(material.specular);
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
-      auto F = fresnel_dielectric(eta, abs(dot(outgoing, normal)));
+      auto F         = fresnel_dielectric(eta, abs(dot(outgoing, normal)));
       if (rnl < max(F)) {
         auto halfway = sample_microfacet(material.roughness, up_normal, rn);
         return reflect(outgoing, halfway);
@@ -1077,14 +1079,16 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
       }
     } break;
     case material_point::scattering_type::glass: {
-      auto eta = reflectivity_to_eta(material.specular);
+      auto eta = mean(reflectivity_to_eta(material.specular));
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
-      auto F = fresnel_dielectric(eta, abs(dot(outgoing, normal)));
+      auto refracted = refract_notir(outgoing, up_normal, 1 / eta);
+      auto F         = fresnel_schlick(material.specular,
+          min(abs(dot(outgoing, normal)), abs(dot(refracted, normal))));
       if (rnl < max(F)) {
         return reflect(outgoing, up_normal);
       } else {
-        return refract(outgoing, up_normal, mean(1 / eta));
+        return refract(outgoing, up_normal, 1 / eta);
       }
     } break;
     case material_point::scattering_type::uber: {
@@ -1170,7 +1174,7 @@ float sample_brdf_pdf(const material_point& material, const vec3f& normal,
       auto eta = reflectivity_to_eta(material.specular);
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
-      auto F = max(fresnel_dielectric(eta, abs(dot(outgoing, normal))));
+      auto F         = max(fresnel_dielectric(eta, abs(dot(outgoing, normal))));
       if (F > 0 && same_hemisphere(normal, outgoing, incoming)) {
         auto halfway = normalize(incoming + outgoing);
         return F *
@@ -1263,9 +1267,12 @@ float sample_delta_pdf(const material_point& material, const vec3f& normal,
       return dot(normal, incoming) >= 0 ? F : 1 - F;
     } break;
     case material_point::scattering_type::glass: {
-      auto eta = reflectivity_to_eta(material.specular);
+      auto eta = mean(reflectivity_to_eta(material.specular));
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
-      auto F = max(fresnel_dielectric(eta, abs(dot(outgoing, normal))));
+      auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
+      auto refracted = refract_notir(outgoing, up_normal, 1 / eta);
+      auto F         = max(fresnel_schlick(material.specular,
+          min(abs(dot(outgoing, normal)), abs(dot(refracted, normal)))));
       return (same_hemisphere(normal, outgoing, incoming)) ? F : 1 - F;
     } break;
     case material_point::scattering_type::uber: {
