@@ -1082,6 +1082,8 @@ vec3f sample_delta(const material_point& material, const vec3f& normal,
       auto eta = mean(reflectivity_to_eta(material.specular));
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
+      auto tir = refract(outgoing, up_normal, 1 / eta) == zero3f;
+      if(tir) return reflect(outgoing, up_normal);
       auto refracted = refract_notir(outgoing, up_normal, 1 / eta);
       auto F         = fresnel_schlick(material.specular,
           min(abs(dot(outgoing, normal)), abs(dot(refracted, normal))));
