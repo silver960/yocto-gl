@@ -407,6 +407,10 @@ inline vec3f refract_notir(const vec3f& w, const vec3f& n, float eta) {
   k      = max(k, 0.001f);
   return -w * eta + (eta * dot(n, w) - sqrt(k)) * n;
 }
+inline pair<vec3f, bool> refract_tir(const vec3f& w, const vec3f& n, float eta) {
+  auto k = 1 - eta * eta * max((float)0, 1 - dot(n, w) * dot(n, w));
+  return {-w * eta + (eta * dot(n, w) - sqrt(max(k, 0.0f))) * n, k <= 0};
+}
 
 // Max element and clamp.
 inline vec3f max(const vec3f& a, float b) {

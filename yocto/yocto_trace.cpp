@@ -841,7 +841,6 @@ vec3f eval_brdfcos(const material_point& material, const vec3f& normal,
                    (1 - fresnel) * D * G / dot(halfway_vector, halfway_vector) *
                    abs(dot(normal, incoming));
       }
-
       if (material.transmission != zero3f &&
           other_hemisphere(normal, outgoing, incoming)) {
         auto ir      = reflect(-incoming, up_normal);
@@ -884,7 +883,7 @@ vec3f eval_delta(const material_point& material, const vec3f& normal,
       auto eta = mean(reflectivity_to_eta(material.specular));
       if (dot(normal, outgoing) < 0) eta = 1 / eta;
       auto up_normal = (dot(normal, outgoing) < 0) ? -normal : normal;
-      auto refracted = refract_notir(outgoing, up_normal, 1 / eta);
+      auto [refracted, tir] = refract_tir(outgoing, up_normal, 1 / eta);
       auto F         = fresnel_schlick(material.specular,
           min(abs(dot(normal, outgoing)), abs(dot(normal, refracted))));
       return same_hemisphere(normal, outgoing, incoming)
